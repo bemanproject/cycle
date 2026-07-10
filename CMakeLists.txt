@@ -2,6 +2,8 @@
 
 cmake_minimum_required(VERSION 3.30...4.3)
 
+include(infra/cmake/enable-experimental-import-std.cmake)
+
 project(
     beman.cycle # CMake Project Name, which is also the name of the top-level
     # targets (e.g., library, executable, etc.).
@@ -25,22 +27,64 @@ option(
     ${PROJECT_IS_TOP_LEVEL}
 )
 
-# for find of beman-install-library
+option(BEMAN_CYCLE_USE_MODULES "Provide beman.cycle as a C++ module" OFF)
+
+if(BEMAN_CYCLE_USE_MODULES)
+    set(CMAKE_CXX_SCAN_FOR_MODULES ON)
+endif()
+
+configure_file(
+    "${PROJECT_SOURCE_DIR}/include/beman/cycle/config_generated.hpp.in"
+    "${PROJECT_BINARY_DIR}/include/beman/cycle/config_generated.hpp"
+    @ONLY
+)
+
+# for find of beman_install_library and configure_build_telemetry
 include(infra/cmake/beman-install-library.cmake)
+include(infra/cmake/BuildTelemetryConfig.cmake)
 
-add_library(beman.cycle INTERFACE)
+if(BEMAN_CYCLE_USE_MODULES)
+    add_library(beman.cycle STATIC)
+else()
+    add_library(beman.cycle INTERFACE)
+endif()
 add_library(beman::cycle ALIAS beman.cycle)
-target_compile_features(beman.cycle INTERFACE cxx_std_23)
 
-target_sources(
-    beman.cycle
-    PUBLIC FILE_SET HEADERS BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/include"
-)
+if(BEMAN_CYCLE_USE_MODULES)
+    target_compile_features(beman.cycle PUBLIC cxx_std_23)
+    set_target_properties(beman.cycle PROPERTIES CXX_MODULE_STD ON)
+    target_sources(
+        beman.cycle
+        PUBLIC
+            FILE_SET CXX_MODULES
+            FILE_SET HEADERS
+                BASE_DIRS
+                    "${CMAKE_CURRENT_SOURCE_DIR}/include"
+                    "${CMAKE_CURRENT_BINARY_DIR}/include"
+    )
+else()
+    target_compile_features(beman.cycle INTERFACE cxx_std_23)
+    target_sources(
+        beman.cycle
+        PUBLIC
+            FILE_SET HEADERS
+                BASE_DIRS
+                    "${CMAKE_CURRENT_SOURCE_DIR}/include"
+                    "${CMAKE_CURRENT_BINARY_DIR}/include"
+    )
+endif()
 
-set_target_properties(
-    beman.cycle
-    PROPERTIES VERIFY_INTERFACE_HEADER_SETS ${PROJECT_IS_TOP_LEVEL}
-)
+if(BEMAN_CYCLE_USE_MODULES)
+    set_target_properties(
+        beman.cycle
+        PROPERTIES VERIFY_INTERFACE_HEADER_SETS OFF
+    )
+else()
+    set_target_properties(
+        beman.cycle
+        PROPERTIES VERIFY_INTERFACE_HEADER_SETS ${PROJECT_IS_TOP_LEVEL}
+    )
+endif()
 
 add_subdirectory(include/beman/cycle)
 
